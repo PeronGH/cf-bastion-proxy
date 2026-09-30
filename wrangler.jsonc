@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "cf-bastion-proxy",
+	"name": "bastion",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-09-26",
 	"observability": {
