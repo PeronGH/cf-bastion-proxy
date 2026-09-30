@@ -5,6 +5,12 @@ const VERSION = 0;
 const RESPONSE_HEADER = new Uint8Array([VERSION, 0]);
 
 const COMMAND_TCP = 0x01;
+const COMMAND_UDP = 0x02;
+
+const DNS_PORT = 53;
+// VLESS frames UDP packets with a 2-byte big-endian length, exactly as DNS over
+// TCP frames messages, so UDP/53 can be bridged verbatim to a TCP resolver.
+const DNS_OVER_TCP_HOST = '8.8.8.8';
 
 const ADDRESS_IPV4 = 0x01;
 const ADDRESS_DOMAIN = 0x02;
@@ -49,12 +55,14 @@ function parseHeader(buf: Uint8Array): Header {
 
 	const command = take(1);
 	if (command === null) return { status: 'incomplete' };
-	// The bastion only dials TCP.
-	if (command[0] !== COMMAND_TCP) return { status: 'invalid' };
+	// The bastion only dials TCP, so the only UDP carried is DNS, over TCP.
+	if (command[0] !== COMMAND_TCP && command[0] !== COMMAND_UDP) return { status: 'invalid' };
 
 	const portBytes = take(2);
 	if (portBytes === null) return { status: 'incomplete' };
 	const port = (portBytes[0] << 8) | portBytes[1];
+	const udp = command[0] === COMMAND_UDP;
+	if (udp && port !== DNS_PORT) return { status: 'invalid' };
 
 	const addressType = take(1);
 	if (addressType === null) return { status: 'incomplete' };
@@ -88,6 +96,9 @@ function parseHeader(buf: Uint8Array): Header {
 		default:
 			return { status: 'invalid' };
 	}
+
+	// Whatever resolver the client asked for, DNS goes to one that accepts TCP.
+	if (udp) host = DNS_OVER_TCP_HOST;
 
 	return { status: 'ok', destination: `${host}:${port}`, consumed: offset };
 }
